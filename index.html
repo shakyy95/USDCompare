@@ -352,18 +352,20 @@ async function init() {
   setStatus('loading', 'Cargando proveedores...');
   try {
     const results = await Promise.all(
-      ASSETS.map(a => fetch(`https://api.comparadolar.ar/${a}/providers`).then(r => {
-        if (!r.ok) throw new Error(`${a}/providers: HTTP ${r.status}`);
+      ASSETS.map(async a => {
+        const r = await fetch(`https://api.comparadolar.ar/${a}/providers`,
+          { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) throw new Error(`${a}/providers HTTP ${r.status}`);
         return r.json();
-      }))
+      })
     );
     ASSETS.forEach((a, i) => providers[a] = results[i]);
     renderSelectors('a');
     renderSelectors('b');
     await refresh();
   } catch(e) {
-    setStatus('err', `Error al cargar proveedores: ${e.message}`);
-    // Reintentar en 10 segundos
+    console.error('init error:', e);
+    setStatus('err', `❌ ${e.message} — reintentando en 10s`);
     setTimeout(init, 10000);
   }
 }
