@@ -28,6 +28,31 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# ── Elegir puerto web ──────────────────────────────────────────────────────
+# Si ya hay un puerto guardado de una instalación previa, usarlo como default
+SAVED_PORT=""
+if [ -f "$APP_DIR/.web_port" ]; then
+  SAVED_PORT=$(cat "$APP_DIR/.web_port")
+fi
+DEFAULT_PORT="${SAVED_PORT:-8080}"
+
+read -p "▸ Puerto para la web [Enter = $DEFAULT_PORT]: " INPUT_PORT
+WEB_PORT="${INPUT_PORT:-$DEFAULT_PORT}"
+
+# Validar que sea un número entre 1024 y 65535
+if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1024 ] || [ "$WEB_PORT" -gt 65535 ]; then
+  echo "❌  Puerto inválido. Debe ser un número entre 1024 y 65535."
+  exit 1
+fi
+
+# Verificar que el puerto no esté en uso
+if ss -tlnH | awk '{print $4}' | grep -q ":${WEB_PORT}$"; then
+  echo "⚠  El puerto $WEB_PORT ya está en uso. Elegí otro."
+  exit 1
+fi
+
+echo "    ✓ Puerto web: $WEB_PORT"
+
 # ── Paso 1: dependencias ───────────────────────────────────────────────────
 echo "▸ [1/5] Instalando dependencias..."
 apt-get update -qq
@@ -65,20 +90,24 @@ else
 fi
 
 rm -rf "$TMPDIR"
+
+# Guardar puerto elegido para futuras actualizaciones
+echo "$WEB_PORT" > "$APP_DIR/.web_port"
 echo "    ✓ Archivos instalados"
 
 # ── Paso 3: configurar nginx ───────────────────────────────────────────────
-echo "▸ [3/5] Configurando nginx..."
-cat > /etc/nginx/sites-available/$SERVICE_NAME <<'EOF'
+echo "▸ [3/5] Configurando nginx en puerto $WEB_PORT..."
+
+cat > /etc/nginx/sites-available/$SERVICE_NAME <<EOF
 server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen $WEB_PORT default_server;
+    listen [::]:$WEB_PORT default_server;
     root /var/www/html;
     index index.html;
     server_name _;
 
     location / {
-        try_files $uri $uri/ =404;
+        try_files \$uri \$uri/ =404;
     }
 
     location ~* \.(js|css|png|jpg|svg|woff2)$ {
@@ -92,7 +121,7 @@ ln -sf /etc/nginx/sites-available/$SERVICE_NAME /etc/nginx/sites-enabled/$SERVIC
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 systemctl enable nginx
-echo "    ✓ nginx corriendo en puerto 80"
+echo "    ✓ nginx corriendo en puerto $WEB_PORT"
 
 # ── Paso 4: servicio monitor (background) ─────────────────────────────────
 echo "▸ [4/5] Configurando monitor en background..."
@@ -137,7 +166,7 @@ Description=Cloudflare Tunnel — Comparador Dólar
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:80 --no-autoupdate
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:$WEB_PORT --no-autoupdate
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -169,8 +198,8 @@ echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║              ✅ Instalación completa                  ║"
 echo "╠══════════════════════════════════════════════════════╣"
-echo "║  Web:         http://$IP"
-echo "║  Config:      $APP_DIR/config.json"
+echo "║  Web:    http://$IP:$WEB_PORT"
+echo "║  Config: $APP_DIR/config.json"
 echo "╠══════════════════════════════════════════════════════╣"
 echo "║  Configurar Telegram y umbral:"
 echo "║    nano $APP_DIR/config.json"
