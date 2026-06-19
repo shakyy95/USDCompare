@@ -35,9 +35,8 @@ if [ -f "$APP_DIR/.web_port" ]; then
 fi
 DEFAULT_PORT="${SAVED_PORT:-8080}"
 
-port_en_uso() {
-  ss -tlnH 2>/dev/null | awk '{print $4}' | grep -q ":${1}$"
-}
+# Detener nginx existente para liberar el puerto antes de validar
+systemctl stop nginx 2>/dev/null || true
 
 while true; do
   read -p "▸ Puerto para la web [Enter = $DEFAULT_PORT]: " INPUT_PORT
@@ -48,11 +47,7 @@ while true; do
     continue
   fi
 
-  # Si el puerto en uso es nginx nuestro, lo ignoramos (se va a reemplazar)
-  NGINX_PID=$(ss -tlnpH 2>/dev/null | awk -v p=":${WEB_PORT}$" '$4 ~ p {print $0}' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)
-  NGINX_PROC=$([ -n "$NGINX_PID" ] && cat /proc/$NGINX_PID/comm 2>/dev/null || echo "")
-
-  if port_en_uso "$WEB_PORT" && [ "$NGINX_PROC" != "nginx" ]; then
+  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -q ":${WEB_PORT}$"; then
     echo "    ⚠  El puerto $WEB_PORT está en uso por otro proceso. Elegí otro."
     DEFAULT_PORT=$WEB_PORT
     continue
