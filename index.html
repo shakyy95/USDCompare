@@ -337,6 +337,7 @@ let histA = [], histB = [];
 let currentRange = 30;
 let chart = null;
 let timer = null, secs = 30;
+let intervalSecs = 30;
 let alertPlayed = false;
 
 const fmt = (n, asset) => {
@@ -348,15 +349,23 @@ const fmt = (n, asset) => {
 
 // ===== INIT =====
 async function init() {
-  // Cargar todos los proveedores en paralelo
-  const results = await Promise.all(
-    ASSETS.map(a => fetch(`https://api.comparadolar.ar/${a}/providers`).then(r => r.json()))
-  );
-  ASSETS.forEach((a, i) => providers[a] = results[i]);
-
-  renderSelectors('a');
-  renderSelectors('b');
-  await refresh();
+  setStatus('loading', 'Cargando proveedores...');
+  try {
+    const results = await Promise.all(
+      ASSETS.map(a => fetch(`https://api.comparadolar.ar/${a}/providers`).then(r => {
+        if (!r.ok) throw new Error(`${a}/providers: HTTP ${r.status}`);
+        return r.json();
+      }))
+    );
+    ASSETS.forEach((a, i) => providers[a] = results[i]);
+    renderSelectors('a');
+    renderSelectors('b');
+    await refresh();
+  } catch(e) {
+    setStatus('err', `Error al cargar proveedores: ${e.message}`);
+    // Reintentar en 10 segundos
+    setTimeout(init, 10000);
+  }
 }
 
 // ===== SELECTORES =====
@@ -503,8 +512,6 @@ function updateCards() {
 }
 
 // ===== ALERTA =====
-let intervalSecs = 30;
-
 function onAlertToggle() {
   alertPlayed = false;
   $('alert-fired').classList.remove('visible');
