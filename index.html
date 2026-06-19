@@ -424,6 +424,60 @@
 
     .cd { font-size: 0.6rem; color: var(--disabled); position: relative; z-index: 1; }
 
+    /* ===== SIMULADOR ===== */
+    .sim-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px 20px;
+      width: 100%; max-width: 760px;
+      box-shadow: var(--shadow-xs);
+      position: relative; z-index: 1;
+    }
+    .sim-title {
+      font-size: 0.6rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--body); margin-bottom: 14px;
+    }
+    .sim-row {
+      display: flex; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .sim-field {
+      display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px;
+    }
+    .sim-label {
+      font-size: 0.62rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .sim-field.side-a .sim-label { color: var(--a); }
+    .sim-field.side-b .sim-label { color: var(--b); }
+    .sim-input {
+      background: var(--surface-md);
+      border: 1px solid var(--border-md);
+      color: var(--heading);
+      border-radius: var(--r);
+      padding: 9px 12px;
+      font-size: 1rem; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-family: inherit; width: 100%;
+      box-shadow: var(--shadow-xs);
+      transition: border-color 0.15s;
+    }
+    .sim-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+    .sim-input.side-a:focus { border-color: var(--a); box-shadow: 0 0 0 1px var(--a); }
+    .sim-input.side-b:focus { border-color: var(--b); box-shadow: 0 0 0 1px var(--b); }
+    .sim-arrow {
+      font-size: 1.2rem; color: var(--body);
+      flex-shrink: 0; padding-top: 18px;
+    }
+    .sim-ars {
+      width: 100%; margin-top: 10px;
+      font-size: 0.7rem; color: var(--body);
+      display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+    }
+    .sim-ars span { color: var(--spread); font-weight: 700; font-variant-numeric: tabular-nums; }
+
     .skel { opacity: 0.15; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -471,6 +525,27 @@
     <div class="pc-sub" id="sub-b">—</div>
     <div class="pc-price skel" id="price-b">—</div>
     <div class="pc-desc" id="desc-b"></div>
+  </div>
+</div>
+
+<!-- SIMULADOR -->
+<div class="sim-card">
+  <div class="sim-title">Simulador</div>
+  <div class="sim-row">
+    <div class="sim-field side-a">
+      <label class="sim-label" id="sim-label-a" for="sim-a">USDC (vendés)</label>
+      <input class="sim-input side-a" id="sim-a" type="number" min="0" step="any" placeholder="0"
+        oninput="simCalc('a')" />
+    </div>
+    <div class="sim-arrow">⇄</div>
+    <div class="sim-field side-b">
+      <label class="sim-label" id="sim-label-b" for="sim-b">USD (comprás)</label>
+      <input class="sim-input side-b" id="sim-b" type="number" min="0" step="any" placeholder="0"
+        oninput="simCalc('b')" />
+    </div>
+  </div>
+  <div class="sim-ars" id="sim-ars" style="display:none">
+    Via <span id="sim-ars-val"></span> ARS intermedios
   </div>
 </div>
 
@@ -732,6 +807,8 @@ function updateCards() {
 
   const pA = getPrice('a');
   const pB = getPrice('b');
+
+  simUpdateLabels();
 
   if (pA != null && pB != null) {
     const diff = pA - pB;
@@ -1022,6 +1099,49 @@ function startCountdown() {
   timer = setInterval(() => { secs--; tick(); if (secs <= 0) refreshPrices(); }, 1000);
 }
 function tick() { $('cd').textContent = secs > 0 ? `Próxima actualización en ${secs}s` : ''; }
+
+// ===== SIMULADOR =====
+let simLock = false; // evita loop recursivo entre inputs
+
+function simCalc(from) {
+  if (simLock) return;
+  const pA = getPrice('a');
+  const pB = getPrice('b');
+  if (pA == null || pB == null) return;
+
+  const valA = parseFloat($('sim-a').value);
+  const valB = parseFloat($('sim-b').value);
+  const arsEl = $('sim-ars');
+  const arsVal = $('sim-ars-val');
+
+  simLock = true;
+  if (from === 'a' && !isNaN(valA) && valA > 0) {
+    const ars = valA * pA;
+    const result = ars / pB;
+    $('sim-b').value = result.toFixed(4);
+    arsEl.style.display = 'flex';
+    arsVal.textContent = fmt(ars, 'usd');
+  } else if (from === 'b' && !isNaN(valB) && valB > 0) {
+    const ars = valB * pB;
+    const result = ars / pA;
+    $('sim-a').value = result.toFixed(4);
+    arsEl.style.display = 'flex';
+    arsVal.textContent = fmt(ars, 'usd');
+  } else {
+    arsEl.style.display = 'none';
+  }
+  simLock = false;
+}
+
+function simUpdateLabels() {
+  const metaA = getProviderMeta('a');
+  const metaB = getProviderMeta('b');
+  $('sim-label-a').textContent = `${ASSET_LABEL[sel.a.asset]} · ${metaA.prettyName ?? sel.a.slug} (${sel.a.dir === 'bid' ? 'vendés' : 'comprás'})`;
+  $('sim-label-b').textContent = `${ASSET_LABEL[sel.b.asset]} · ${metaB.prettyName ?? sel.b.slug} (${sel.b.dir === 'bid' ? 'vendés' : 'comprás'})`;
+  // Recalcular con los nuevos precios si hay valores
+  const valA = parseFloat($('sim-a').value);
+  if (valA > 0) simCalc('a');
+}
 
 loadTgConfig();
 init();
