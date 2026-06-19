@@ -4,6 +4,7 @@
 const https  = require('https');
 const fs     = require('fs');
 const path   = require('path');
+const { spawn } = require('child_process');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
@@ -60,6 +61,46 @@ function post(url, data) {
 function fmt(n) {
   if (n == null) return '—';
   return `$${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ── Beep por ALSA (aplay) ───────────────────────────────────────────────────
+function playBeep() {
+  // Genera WAV PCM 16-bit mono 44100Hz con dos tonos (880Hz + 440Hz)
+  const sampleRate = 44100;
+  const duration   = 1.2;        // segundos totales
+  const numSamples = Math.floor(sampleRate * duration);
+  const dataSize   = numSamples * 2; // 16-bit = 2 bytes por muestra
+
+  const buf = Buffer.alloc(44 + dataSize);
+
+  // Cabecera RIFF/WAV
+  buf.write('RIFF', 0);                           buf.writeUInt32LE(36 + dataSize, 4);
+  buf.write('WAVE', 8);                           buf.write('fmt ', 12);
+  buf.writeUInt32LE(16, 16);                      buf.writeUInt16LE(1, 20);   // PCM
+  buf.writeUInt16LE(1, 22);                       buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * 2, 28);          buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);                      buf.write('data', 36);
+  buf.writeUInt32LE(dataSize, 40);
+
+  // Dos pitidos: 880Hz durante 0.4s, silencio 0.1s, 880Hz durante 0.4s
+  const seg1end = Math.floor(sampleRate * 0.4);
+  const seg2end = Math.floor(sampleRate * 0.5);
+  const seg3end = numSamples;
+
+  for (let i = 0; i < numSamples; i++) {
+    let sample = 0;
+    if (i < seg1end) {
+      sample = Math.sin(2 * Math.PI * 880 * i / sampleRate) * 28000;
+    } else if (i >= seg2end && i < seg3end) {
+      sample = Math.sin(2 * Math.PI * 1100 * (i - seg2end) / sampleRate) * 28000;
+    }
+    buf.writeInt16LE(Math.round(sample), 44 + i * 2);
+  }
+
+  const proc = spawn('aplay', ['-q', '-'], { stdio: ['pipe', 'ignore', 'ignore'] });
+  proc.stdin.write(buf);
+  proc.stdin.end();
+  proc.on('error', () => {}); // aplay no disponible — ignorar silenciosamente
 }
 
 // ── Enviar alerta Telegram ───────────────────────────────────────────────────
@@ -142,6 +183,7 @@ async function tick() {
     console.log(`[monitor] ⚡ Umbral superado (${fmt(diff)} >= ${fmt(cfg.alert.threshold)})`);
     alertCoolingDown = true;
     setTimeout(() => { alertCoolingDown = false; }, COOLDOWN_MS);
+    playBeep();
     await sendAlert(cfg, pA, pB, diff, entA?.prettyName ?? cfg.sideA.slug, entB?.prettyName ?? cfg.sideB.slug);
   } else if (diff < cfg.alert.threshold && alertCoolingDown) {
     // Resetear cooldown si la diferencia bajó del umbral
