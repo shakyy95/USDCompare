@@ -1,0 +1,21 @@
+{
+  "telegram": {
+    "token": "",
+    "chatId": ""
+  },
+  "alert": {
+    "threshold": 20,
+    "enabled": true
+  },
+  "frequency": 30,
+  "sideA": {
+    "asset": "usdc",
+    "slug": "arq",
+    "dir": "bid"
+  },
+  "sideB": {
+    "asset": "usd",
+    "slug": "uala",
+    "dir": "ask"
+  }
+}
