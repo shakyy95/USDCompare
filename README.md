@@ -17,7 +17,7 @@ RPi
 ## Instalación en Raspberry Pi
 
 ```bash
-sudo bash <(curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/install.sh)
+curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/dolar-comparador/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 El instalador:
@@ -80,7 +80,7 @@ También podés detectar el chat ID desde la web (sección Telegram).
 ## Actualizar
 
 ```bash
-sudo bash <(curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/install.sh)
+curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/dolar-comparador/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 El instalador preserva tu `config.json` existente al actualizar.
