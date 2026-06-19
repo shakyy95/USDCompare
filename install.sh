@@ -29,27 +29,37 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # ── Elegir puerto web ──────────────────────────────────────────────────────
-# Si ya hay un puerto guardado de una instalación previa, usarlo como default
 SAVED_PORT=""
 if [ -f "$APP_DIR/.web_port" ]; then
   SAVED_PORT=$(cat "$APP_DIR/.web_port")
 fi
 DEFAULT_PORT="${SAVED_PORT:-8080}"
 
-read -p "▸ Puerto para la web [Enter = $DEFAULT_PORT]: " INPUT_PORT
-WEB_PORT="${INPUT_PORT:-$DEFAULT_PORT}"
+port_en_uso() {
+  ss -tlnH 2>/dev/null | awk '{print $4}' | grep -q ":${1}$"
+}
 
-# Validar que sea un número entre 1024 y 65535
-if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1024 ] || [ "$WEB_PORT" -gt 65535 ]; then
-  echo "❌  Puerto inválido. Debe ser un número entre 1024 y 65535."
-  exit 1
-fi
+while true; do
+  read -p "▸ Puerto para la web [Enter = $DEFAULT_PORT]: " INPUT_PORT
+  WEB_PORT="${INPUT_PORT:-$DEFAULT_PORT}"
 
-# Verificar que el puerto no esté en uso
-if ss -tlnH | awk '{print $4}' | grep -q ":${WEB_PORT}$"; then
-  echo "⚠  El puerto $WEB_PORT ya está en uso. Elegí otro."
-  exit 1
-fi
+  if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1024 ] || [ "$WEB_PORT" -gt 65535 ]; then
+    echo "    ❌ Puerto inválido (debe ser 1024–65535). Intentá de nuevo."
+    continue
+  fi
+
+  # Si el puerto en uso es nginx nuestro, lo ignoramos (se va a reemplazar)
+  NGINX_PID=$(ss -tlnpH 2>/dev/null | awk -v p=":${WEB_PORT}$" '$4 ~ p {print $0}' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)
+  NGINX_PROC=$([ -n "$NGINX_PID" ] && cat /proc/$NGINX_PID/comm 2>/dev/null || echo "")
+
+  if port_en_uso "$WEB_PORT" && [ "$NGINX_PROC" != "nginx" ]; then
+    echo "    ⚠  El puerto $WEB_PORT está en uso por otro proceso. Elegí otro."
+    DEFAULT_PORT=$WEB_PORT
+    continue
+  fi
+
+  break
+done
 
 echo "    ✓ Puerto web: $WEB_PORT"
 
