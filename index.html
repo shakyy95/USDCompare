@@ -207,15 +207,15 @@
     .pc-desc { font-size: 0.58rem; color: var(--body); margin-top: 4px; }
 
     .pin-btn {
-      background: none; border: 1px solid var(--border);
-      color: var(--body); border-radius: var(--r-full);
-      padding: 2px 10px; font-size: 0.58rem; font-weight: 500;
-      cursor: pointer; font-family: inherit; margin-top: 8px;
-      transition: all 0.15s;
+      background: var(--surface-md); border: 1px solid var(--border-md);
+      color: var(--heading); border-radius: var(--r-full);
+      padding: 4px 12px; font-size: 0.68rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; margin-top: 10px;
+      transition: all 0.15s; display: inline-block;
     }
-    .pin-btn:hover { border-color: var(--border-md); color: var(--heading); }
+    .pin-btn:hover { border-color: var(--border-str); background: var(--surface-str); }
     .pin-btn.pinned { border-color: var(--spread); color: var(--spread); background: var(--spread-soft); }
-    .pin-val { font-size: 0.6rem; color: var(--spread); margin-top: 3px; display: none; }
+    .pin-val { font-size: 0.62rem; color: var(--spread); margin-top: 4px; display: none; }
     .pin-val.visible { display: block; }
 
     .spread-card {
@@ -490,6 +490,16 @@
     }
     .sim-ars span { color: var(--spread); font-weight: 700; font-variant-numeric: tabular-nums; }
 
+    .sim-lock-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--body); border-radius: var(--r-full);
+      padding: 2px 8px; font-size: 0.65rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .sim-lock-btn:hover { border-color: var(--border-md); color: var(--heading); }
+    .sim-lock-btn.locked { border-color: var(--spread); color: var(--spread); background: var(--spread-soft); }
+
     .skel { opacity: 0.15; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -523,8 +533,6 @@
     <div class="pc-sub" id="sub-a">—</div>
     <div class="pc-price skel" id="price-a">—</div>
     <div class="pc-desc" id="desc-a"></div>
-    <button class="pin-btn" id="pin-btn-a" onclick="togglePin('a')">Fijar precio</button>
-    <div class="pin-val" id="pin-val-a"></div>
   </div>
 
   <div class="spread-card">
@@ -539,8 +547,6 @@
     <div class="pc-sub" id="sub-b">—</div>
     <div class="pc-price skel" id="price-b">—</div>
     <div class="pc-desc" id="desc-b"></div>
-    <button class="pin-btn" id="pin-btn-b" onclick="togglePin('b')">Fijar precio</button>
-    <div class="pin-val" id="pin-val-b"></div>
   </div>
 </div>
 
@@ -549,13 +555,19 @@
   <div class="sim-title">Simulador</div>
   <div class="sim-row">
     <div class="sim-field side-a">
-      <label class="sim-label" id="sim-label-a" for="sim-a">USDC (vendés)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <label class="sim-label" id="sim-label-a" for="sim-a">USDC (vendés)</label>
+        <button class="sim-lock-btn" id="sim-lock-a" onclick="simToggleLock('a')" title="Fijar cantidad">🔓 Fijar</button>
+      </div>
       <input class="sim-input side-a" id="sim-a" type="number" min="0" step="any" placeholder="0"
         oninput="simCalc('a')" />
     </div>
     <div class="sim-arrow">⇄</div>
     <div class="sim-field side-b">
-      <label class="sim-label" id="sim-label-b" for="sim-b">USD (comprás)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <label class="sim-label" id="sim-label-b" for="sim-b">USD (comprás)</label>
+        <button class="sim-lock-btn" id="sim-lock-b" onclick="simToggleLock('b')" title="Fijar cantidad">🔓 Fijar</button>
+      </div>
       <input class="sim-input side-b" id="sim-b" type="number" min="0" step="any" placeholder="0"
         oninput="simCalc('b')" />
     </div>
@@ -1155,36 +1167,56 @@ function getPinnedOrLive(side) {
 }
 
 // ===== SIMULADOR =====
-let simLock = false; // evita loop recursivo entre inputs
+let simRecalc = false;         // evita loop recursivo
+const simFixed = { a: false, b: false }; // lado fijado
+
+function simToggleLock(side) {
+  const val = parseFloat($(`sim-${side}`).value);
+  simFixed[side] = !simFixed[side];
+  const btn = $(`sim-lock-${side}`);
+  if (simFixed[side]) {
+    btn.textContent = '🔒 Fijado';
+    btn.classList.add('locked');
+    $(`sim-${side}`).readOnly = true;
+  } else {
+    btn.textContent = '🔓 Fijar';
+    btn.classList.remove('locked');
+    $(`sim-${side}`).readOnly = false;
+    // Al liberar, recalcular desde el otro lado si tiene valor
+    const other = side === 'a' ? 'b' : 'a';
+    const otherVal = parseFloat($(`sim-${other}`).value);
+    if (otherVal > 0) simCalc(other);
+  }
+}
 
 function simCalc(from) {
-  if (simLock) return;
+  if (simRecalc) return;
   const pA = getPrice('a');
   const pB = getPrice('b');
   if (pA == null || pB == null) return;
 
-  const valA = parseFloat($('sim-a').value);
-  const valB = parseFloat($('sim-b').value);
-  const arsEl = $('sim-ars');
+  const arsEl  = $('sim-ars');
   const arsVal = $('sim-ars-val');
 
-  simLock = true;
-  if (from === 'a' && !isNaN(valA) && valA > 0) {
-    const ars = valA * pA;
-    const result = ars / pB;
-    $('sim-b').value = result.toFixed(4);
-    arsEl.style.display = 'flex';
-    arsVal.textContent = fmt(ars, 'usd');
-  } else if (from === 'b' && !isNaN(valB) && valB > 0) {
-    const ars = valB * pB;
-    const result = ars / pA;
-    $('sim-a').value = result.toFixed(4);
-    arsEl.style.display = 'flex';
-    arsVal.textContent = fmt(ars, 'usd');
-  } else {
-    arsEl.style.display = 'none';
+  simRecalc = true;
+  if (from === 'a' && !simFixed.b) {
+    const valA = parseFloat($('sim-a').value);
+    if (!isNaN(valA) && valA > 0) {
+      const ars = valA * pA;
+      $('sim-b').value = (ars / pB).toFixed(4);
+      arsEl.style.display = 'flex';
+      arsVal.textContent = fmt(ars, 'usd');
+    } else { arsEl.style.display = 'none'; }
+  } else if (from === 'b' && !simFixed.a) {
+    const valB = parseFloat($('sim-b').value);
+    if (!isNaN(valB) && valB > 0) {
+      const ars = valB * pB;
+      $('sim-a').value = (ars / pA).toFixed(4);
+      arsEl.style.display = 'flex';
+      arsVal.textContent = fmt(ars, 'usd');
+    } else { arsEl.style.display = 'none'; }
   }
-  simLock = false;
+  simRecalc = false;
 }
 
 function simUpdateLabels() {
@@ -1192,9 +1224,13 @@ function simUpdateLabels() {
   const metaB = getProviderMeta('b');
   $('sim-label-a').textContent = `${ASSET_LABEL[sel.a.asset]} · ${metaA.prettyName ?? sel.a.slug} (${sel.a.dir === 'bid' ? 'vendés' : 'comprás'})`;
   $('sim-label-b').textContent = `${ASSET_LABEL[sel.b.asset]} · ${metaB.prettyName ?? sel.b.slug} (${sel.b.dir === 'bid' ? 'vendés' : 'comprás'})`;
-  // Recalcular con los nuevos precios si hay valores
-  const valA = parseFloat($('sim-a').value);
-  if (valA > 0) simCalc('a');
+  // Al actualizar precios, recalcular el lado libre desde el lado fijado
+  if (simFixed.a) simCalc('a');
+  else if (simFixed.b) simCalc('b');
+  else {
+    const valA = parseFloat($('sim-a').value);
+    if (valA > 0) simCalc('a');
+  }
 }
 
 loadTgConfig();
