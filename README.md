@@ -14,7 +14,7 @@ Fuente: [comparadolar.ar](https://comparadolar.ar) · Sin backend · Archivo HTM
 ## Instalación en Raspberry Pi
 
 ```bash
-sudo bash <(curl -sL https://raw.githubusercontent.com/TU_USUARIO/dolar-comparador/main/install.sh)
+sudo bash <(curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/install.sh)
 ```
 
 El instalador:
@@ -36,7 +36,7 @@ http://<ip-de-la-rpi>
 ## Actualizar
 
 ```bash
-sudo bash <(curl -sL https://raw.githubusercontent.com/TU_USUARIO/dolar-comparador/main/install.sh)
+sudo bash <(curl -sL https://raw.githubusercontent.com/shakyy95/USDCompare/main/install.sh)
 ```
 
 ## Uso sin RPi

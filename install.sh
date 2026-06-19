@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="https://github.com/ezequiel-creditrust/dolar-comparador"
+REPO="https://github.com/shakyy95/USDCompare"
 INSTALL_DIR="/var/www/html"
 SERVICE_NAME="dolar-comparador"
 
