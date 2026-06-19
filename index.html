@@ -206,6 +206,18 @@
     .side-b .pc-price { color: var(--b); }
     .pc-desc { font-size: 0.58rem; color: var(--body); margin-top: 4px; }
 
+    .pin-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--body); border-radius: var(--r-full);
+      padding: 2px 10px; font-size: 0.58rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; margin-top: 8px;
+      transition: all 0.15s;
+    }
+    .pin-btn:hover { border-color: var(--border-md); color: var(--heading); }
+    .pin-btn.pinned { border-color: var(--spread); color: var(--spread); background: var(--spread-soft); }
+    .pin-val { font-size: 0.6rem; color: var(--spread); margin-top: 3px; display: none; }
+    .pin-val.visible { display: block; }
+
     .spread-card {
       min-width: 180px;
       background: var(--surface);
@@ -511,6 +523,8 @@
     <div class="pc-sub" id="sub-a">—</div>
     <div class="pc-price skel" id="price-a">—</div>
     <div class="pc-desc" id="desc-a"></div>
+    <button class="pin-btn" id="pin-btn-a" onclick="togglePin('a')">Fijar precio</button>
+    <div class="pin-val" id="pin-val-a"></div>
   </div>
 
   <div class="spread-card">
@@ -525,6 +539,8 @@
     <div class="pc-sub" id="sub-b">—</div>
     <div class="pc-price skel" id="price-b">—</div>
     <div class="pc-desc" id="desc-b"></div>
+    <button class="pin-btn" id="pin-btn-b" onclick="togglePin('b')">Fijar precio</button>
+    <div class="pin-val" id="pin-val-b"></div>
   </div>
 </div>
 
@@ -704,7 +720,16 @@ function renderSelectors(side) {
   `;
 }
 
+function clearPin(side) {
+  pinned[side] = null;
+  const btn = $(`pin-btn-${side}`);
+  const lbl = $(`pin-val-${side}`);
+  if (btn) { btn.textContent = 'Fijar precio'; btn.classList.remove('pinned'); }
+  if (lbl) { lbl.textContent = ''; lbl.classList.remove('visible'); }
+}
+
 function selectAsset(side, asset) {
+  clearPin(side);
   sel[side].asset = asset;
   const list = providers[asset] || [];
   if (!list.find(p => p.slug === sel[side].slug)) {
@@ -715,12 +740,14 @@ function selectAsset(side, asset) {
 }
 
 function selectProvider(side, slug) {
+  clearPin(side);
   sel[side].slug = slug;
   renderSelectors(side);
   refresh();
 }
 
 function selectDir(side, dir) {
+  clearPin(side);
   sel[side].dir = dir;
   renderSelectors(side);
   refresh();
@@ -805,8 +832,8 @@ function updateCards() {
     $(`desc-${side}`).textContent  = `ARS por 1 ${ASSET_LABEL[asset]}`;
   });
 
-  const pA = getPrice('a');
-  const pB = getPrice('b');
+  const pA = getPinnedOrLive('a');
+  const pB = getPinnedOrLive('b');
 
   simUpdateLabels();
 
@@ -1099,6 +1126,33 @@ function startCountdown() {
   timer = setInterval(() => { secs--; tick(); if (secs <= 0) refreshPrices(); }, 1000);
 }
 function tick() { $('cd').textContent = secs > 0 ? `Próxima actualización en ${secs}s` : ''; }
+
+// ===== PIN (fijar precio) =====
+const pinned = { a: null, b: null }; // null = libre, number = precio fijado
+
+function togglePin(side) {
+  const btn = $(`pin-btn-${side}`);
+  const lbl = $(`pin-val-${side}`);
+  if (pinned[side] !== null) {
+    pinned[side] = null;
+    btn.textContent = 'Fijar precio';
+    btn.classList.remove('pinned');
+    lbl.textContent = '';
+    lbl.classList.remove('visible');
+  } else {
+    const price = getPrice(side);
+    if (price == null) return;
+    pinned[side] = price;
+    btn.textContent = 'Liberar precio';
+    btn.classList.add('pinned');
+    lbl.textContent = `Fijado en ${fmt(price, sel[side].asset)}`;
+    lbl.classList.add('visible');
+  }
+}
+
+function getPinnedOrLive(side) {
+  return pinned[side] !== null ? pinned[side] : getPrice(side);
+}
 
 // ===== SIMULADOR =====
 let simLock = false; // evita loop recursivo entre inputs
