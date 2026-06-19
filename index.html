@@ -432,19 +432,35 @@ function getProviderMeta(side) {
 
 // ===== HISTORIAL =====
 async function fetchHistory() {
+  const safeJson = async r => {
+    if (!r.ok) return [];
+    try { return await r.json(); } catch { return []; }
+  };
   const [r1, r2] = await Promise.all([
     fetch(`https://api.comparadolar.ar/${sel.a.asset}/providers/${sel.a.slug}/history`),
     fetch(`https://api.comparadolar.ar/${sel.b.asset}/providers/${sel.b.slug}/history`),
   ]);
-  histA = await r1.json();
-  histB = await r2.json();
+  [histA, histB] = await Promise.all([safeJson(r1), safeJson(r2)]);
 }
 
-// ===== REFRESH COMPLETO =====
+// ===== REFRESH SOLO PRECIOS (timer) =====
+async function refreshPrices() {
+  clearInterval(timer);
+  setStatus('loading', 'Actualizando precios...');
+  try {
+    await fetchPrices();
+    updateCards();
+    setStatus('ok', `Actualizado: ${new Date().toLocaleTimeString('es-AR')}`);
+    startCountdown();
+  } catch(e) {
+    setStatus('err', `Error: ${e.message}`);
+  }
+}
+
+// ===== REFRESH COMPLETO (cambio de selección) =====
 async function refresh() {
   clearInterval(timer);
-  setStatus('loading', 'Actualizando...');
-
+  setStatus('loading', 'Cargando...');
   try {
     await Promise.all([fetchPrices(), fetchHistory()]);
     updateCards();
@@ -746,7 +762,7 @@ function setStatus(type, txt) {
 }
 function startCountdown() {
   clearInterval(timer); secs = intervalSecs; tick();
-  timer = setInterval(() => { secs--; tick(); if (secs <= 0) refresh(); }, 1000);
+  timer = setInterval(() => { secs--; tick(); if (secs <= 0) refreshPrices(); }, 1000);
 }
 function tick() { $('cd').textContent = secs > 0 ? `Próxima actualización en ${secs}s` : ''; }
 
